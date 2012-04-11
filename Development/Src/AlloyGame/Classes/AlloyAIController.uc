@@ -8,7 +8,7 @@ var int WANDERDISTANCEGOAL;
 var Vector TargetLoc;
 
 // AI team 
-var AlloyTeamInfo team;
+var AlloyTeamInfo BotTeam;
 
 
 
@@ -39,11 +39,6 @@ var AlloyBotPawn myPawn;
 simulated event PostBeginPlay()
 {
 	super.PostBeginPlay();
-	
-
-	team = AlloyGame(WorldInfo.Game).GetTeam(1);
-	team.AddToTeam( self );
-	`Log("My team: "@team.GetTeamNum());
 }
 
 // once the bot appears in game, associate the pawn with the AI controller.
@@ -54,8 +49,8 @@ event Possess(Pawn inPawn, bool bVehicleTransition)
 }
 
 // Get Bot parts (components)
-function SetupPawn(){
-	`Log("My Pawn: "@Pawn);
+simulated function SetupPawn(){
+//	`Log("My Pawn: "@Pawn);
 	myPawn =    AlloyBotPawn(Pawn);
 	Loco =      myPawn.LocoAI;
 	Power =     myPawn.PowerAI;
@@ -64,18 +59,22 @@ function SetupPawn(){
 	
 	SetupAI();
 	
-	SearchTargetType = Head.GetTargetType();
-	`Log("TargetType: "@SearchTargetType);
-	TargetViewRange = Head.GetViewRange();
-	ToolRange = Tool.GetRange();
+	SearchTargetType = Head.TargetType;
+	TargetViewRange = Head.ViewRange;
+	ToolRange = Tool.ToolRange;
 }
 
-function SetupAI(){
-	Head.Initialize();
+simulated function SetupAI(){
+	Head.Initialize(BotTeam.GetTeamNum());
 	Tool.Initialize();
 }
 
-
+simulated function SetBotTeam(AlloyTeamInfo PlayerTeam)
+{
+	BotTeam = PlayerTeam;	
+	BotTeam.AddToTeam( self );
+	`Log("My team: "@BotTeam.GetTeamNum());
+}
 
 /* Getters and Setters */
 function NavigationPoint GetWanderGoal(){
@@ -167,22 +166,23 @@ function Tick(Float Delta){
 }
 
 Begin:
-	`Log("Entering wander state");
+//	`Log("Entering wander state");
 	Sleep(0); //http://forums.epicgames.com/threads/842897-Improving-my-AI-efficiency
+	AlloyBotPawn(Pawn).PlayWalks();
 	if(WanderGoal == none){
 		WanderGoal = GetWanderGoal();
 	}
 	if(Actorreachable(WanderGoal))
 {
 //  MoveToward(TargetActor);
-	MoveToward(WanderGoal);
+	MoveToward(WanderGoal, WanderGoal);
 }
 else
 {
 	FindPathTo(WanderGoal.Location);
 
   MoveTarget = FindPathToward(RouteCache[0]);
-  MoveToward(MoveTarget);
+  MoveToward(MoveTarget, MoveTarget);
 }
 //	moveTo(TargetActor.Location);
 	if(dist > ToolRange)
@@ -219,11 +219,11 @@ function Tick (Float Delta){
 Begin:
 	Sleep(0); //http://forums.epicgames.com/threads/842897-Improving-my-AI-efficiency
 //	`Log("Entering ApproachTarget state:"@Head);
-	
+	AlloyBotPawn(Pawn).PlayWalks();
 if(Actorreachable(TargetActor))
 {
 //  MoveToward(TargetActor);
-	MoveToward(TargetActor);
+	MoveToward(TargetActor, TargetActor);
 }
 else
 {
@@ -231,7 +231,7 @@ else
 	FindPathTo(TargetActor.Location);
 
   MoveTarget = FindPathToward(RouteCache[0]);
-  MoveToward(MoveTarget);
+  MoveToward(MoveTarget, MoveTarget);
 }
 //	moveTo(TargetActor.Location);
 //	`Log("Finished moving towards");
@@ -251,6 +251,7 @@ state EngageTarget{
 	
 Begin:
 	Sleep(0);
+	AlloyBotPawn(Pawn).StopWalks();
 //	`Log("Entering EngageTarget state "@Head);
 	dist = VSize(Pawn.Location - TargetActor.Location);
 	if(dist < ToolRange){

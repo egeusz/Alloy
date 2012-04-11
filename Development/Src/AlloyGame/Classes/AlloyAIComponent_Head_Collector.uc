@@ -1,31 +1,12 @@
 class AlloyAIComponent_Head_Collector extends AlloyAIComponent_Head;
 
 
-var class<Actor> TargetType;
-
-var float ViewRange;
-
-function Initialize(){
-	`Log("Collector head created");
-	ViewRange = 800;
-	TargetType = class'AlloyPartPawn';
-}
-
-
-function class<Actor> GetTargetType(){
-	return TargetType;
-}
-
-function float GetViewRange(){
-	return ViewRange;
-}
-
 function HeadUseTool(AlloyAIController toolController, Actor target){
 	toolController.Tool.Collect(toolController, target);
 }
 
 function bool Search(Actor target){
-	if(!AlloyPartPawn(target).bIsAttachedToBot){
+	if(!AlloyPartPawn(target).bIsAttached){
 //	`Log("Collector Searching");
 		return true;
 	} else {
@@ -35,7 +16,13 @@ function bool Search(Actor target){
 
 }
 
+function Hit(AlloyAIController headController, optional Actor target){
+		AlloyBotPawn(headController.Pawn).HeadPart.PlayAnim('head_collector_anim_hit');
+}
+
 defaultproperties
 {
-	
+	WalkingAnim = "head_collector_anim_moving"
+	TargetType = class'AlloyPartPawn'
+	ViewRange = 800
 }
