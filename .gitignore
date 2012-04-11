@@ -1,4 +1,3 @@
-Binaries
-Engine
-*.exe
-.svn
+*
+!Development
+!UDKGame
