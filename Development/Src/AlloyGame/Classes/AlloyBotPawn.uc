@@ -5,7 +5,6 @@ var DynamicLightEnvironmentComponent LightEnvironment;
 
 var class<AlloyAIController> NPCController;
 
-
 // -- AI components for bot--
 var AlloyAIComponent_Head HeadAI;
 var AlloyAIComponent_Power PowerAI;
@@ -20,25 +19,13 @@ var AlloyPartPawn LocoPart;
 
 
 /** The Particle System Template for the Beam */
-var particleSystem SpawnTemplate;
-var particleSystem DeathTemplate;
+var particleSystem BeamTemplate;
+
 /** Holds the Emitter for the Beam */
-var ParticleSystemComponent SpawnEmitter;
-var ParticleSystemComponent DeathEmitter;
-
-// Replication Variables
-var repnotify name tHead_name;
-var repnotify name tPower_name;
-var repnotify name tTool_name;
-var repnotify name tLoco_name;
-
+var ParticleSystemComponent BeamEmitter;
 
 var name EndPointParamName;
 
-replication
-{
-	if (bNetDirty) tHead_name, tPower_name, tTool_name, tLoco_name;
-}
 
 simulated event PostBeginPlay()
 {
@@ -50,221 +37,89 @@ simulated event PostBeginPlay()
 	SetPhysics(PHYS_Falling);
 	
 	Super.PostBeginPlay();
-	//SetTimer(0.01666667, true, 'UpdateLoc');
-	
-	//`Log("--Starting Values on bot--" @tHead_name @tPower_name  @tTool_name  @tLoco_name);
-	
-	tHead_name = 'none';
-	tPower_name = 'none';
-	tTool_name = 'none';
- 	tLoco_name = 'none';
-	
+	SetTimer(0.01666667, true, 'UpdateLoc');
 }
 
-simulated function UpdateBotTeam(AlloyTeamInfo PlayerTeam)
+//--attach a part to the bot--
+simulated function AttachPart(AlloyPartPawn AP, name APsocket)
 {
-	AlloyAIController(Controller).SetBotTeam(PlayerTeam);
+	AP.setPhysicsToAttached(); //set part mode and physics to attached
+	AP.SetBase(self,, Mesh, APsocket); // set base to bot
 }
 
-reliable server function serverReplicateSetComponentsForBot(name head, name power, name tool, name loco)
+simulated function DetachPart(AlloyPartPawn AP)
 {
-	SetComponentsReplication(head, power, tool, loco);
+	AP.setPhysicsToDetached(); //set part mode and physics to attached
+	AP.SetBase(none); // set base to bot
 }
-
-simulated function clientReplicateSetComponentsForBot(name head, name power, name tool, name loco)
-{
-	SetComponentsReplication(head, power, tool, loco);
-}
-
-simulated event ReplicatedEvent(name VarName) {
-	if (VarName == 'tHead_name' || VarName == 'tPower_name' || VarName == 'tTool_name' || VarName == 'tLoco_name' ) //if the magnet bool is dirty 
-	{
-		`Log("-- Attempt to replicate parts on Bot--" @tHead_name @tPower_name  @tTool_name  @tLoco_name);
-		clientReplicateSetComponentsForBot(tHead_name, tPower_name, tTool_name, tLoco_name); // toggle magnet on server
-	}
-	
-}	
-
 
 
 simulated function setComponentsForBot(AlloyPartPawn h, AlloyPartPawn p, AlloyPartPawn t, AlloyPartPawn l)
 {
+	
 	//-- set refrences to parts in bot--
 	HeadPart = h;
 	PowerPart = p;
 	ToolPart = t;
-	LocoPart  = l;	
+	LocoPart  = l;
+	
+	/*
+	HeadPart.setPhysicsToAttached();
+	PowerPart.setPhysicsToAttached();
+	ToolPart.setPhysicsToAttached();
+	LocoPart.setPhysicsToAttached();
+	*/	
+	
 	// --attach the peices to the bot-- 		
-	LocoPart.attachPart(self, Mesh, 'sock_root'); // attach loco to bot base
-	PowerPart.attachPart(LocoPart,LocoPart.SkeletalMeshComponent, 'sock_power'); //attach power to loco 
-	ToolPart.attachPart(PowerPart,PowerPart.SkeletalMeshComponent, 'sock_arms'); //attach tool to power
-	HeadPart.attachPart(PowerPart,PowerPart.SkeletalMeshComponent, 'sock_head'); //attach head to power
+	AttachPart(HeadPart, 'sock_root');
+	AttachPart(PowerPart,'sock_root');
+	AttachPart(ToolPart, 'sock_root');
+	ToolPart.InitAnimTree();
+	AttachPart(LocoPart, 'sock_root');
+
 	//-- create and store AI components for bot --
 	HeadAI  = AlloyAIComponent_Head (h.AlloyAIComponentActive);
 	PowerAI = AlloyAIComponent_Power(p.AlloyAIComponentActive);
 	ToolAI  = AlloyAIComponent_Tool (t.AlloyAIComponentActive);
 	LocoAI  = AlloyAIComponent_Loco (l.AlloyAIComponentActive);
-	GroundSpeed = LocoAI.LocoSpeed*PowerAI.MoveSpeed;
-	Health = LocoAI.Health;
-	HealthMax = LocoAI.HealthMax;
 	
-	//SpawnDefaultController();
+	SpawnDefaultController();
+	
 	AlloyAIController(Controller).SetupPawn();
 	
-
-	SpawnParticle();
-	
-	tHead_name = HeadPart.Name;
-	tPower_name = PowerPart.Name;
-	tTool_name = ToolPart.Name;
-	tLoco_name = LocoPart.Name;
-	
-	if( Role < Role_Authority ) // tell the server to replicate attachment
- 	{
-		serverReplicateSetComponentsForBot(tHead_name, tPower_name, tTool_name, tLoco_name);
-	}
 }
 
 
-simulated function DetachPart(AlloyPartPawn AP)
-{
-	AP.detachPart(); //set part mode and physics to attached
-	AP.SetBase(none); // set base to bot
-}
 
-
-simulated function SetComponentsReplication(name head, name power, name tool, name loco)
+simulated function FireLaser(AlloyBotPawn target) 
 {
-	local AlloyPartPawn AP;
-	if(head != 'none' && power != 'none' && tool != 'none' && loco != 'none'){
- 		`Log("--Replicating Bot Attachments--" );
-		foreach WorldInfo.AllActors(class'AlloyPartPawn', AP)
-		{
-			//-- set refrences to parts in bot--
-			if(head == AP.name)
-			{		
-				`Log("--Got Head--" );
-				HeadPart = AP;
-			}
-			if(power == AP.name)
-			{
-				`Log("--Got Power--" );
-				PowerPart = AP;
-			}
-			if(tool == AP.name)
-			{
-				`Log("--Got Tool--" );
-				ToolPart = AP;
-			}
-			if(loco == AP.name)
-			{
-				`Log("--Got Loco--" );
-				LocoPart  = AP;	
-			}
-		}
-		// --attach the peices to the bot-- 		
-		LocoPart.attachPart(self, Mesh, 'sock_root'); // attach loco to bot base
-		PowerPart.attachPart(LocoPart,LocoPart.SkeletalMeshComponent, 'sock_power'); //attach power to loco 
-		ToolPart.attachPart(PowerPart,PowerPart.SkeletalMeshComponent, 'sock_arms'); //attach tool to power
-		HeadPart.attachPart(PowerPart,PowerPart.SkeletalMeshComponent, 'sock_head'); //attach head to power
-		//-- create and store AI components for bot --
-		HeadAI  = AlloyAIComponent_Head (HeadPart.AlloyAIComponentActive);
-		PowerAI = AlloyAIComponent_Power(PowerPart.AlloyAIComponentActive);
-		ToolAI  = AlloyAIComponent_Tool (ToolPart.AlloyAIComponentActive);
-		LocoAI  = AlloyAIComponent_Loco (LocoPart.AlloyAIComponentActive);
-		GroundSpeed = LocoAI.LocoSpeed*PowerAI.MoveSpeed;
-		Health = LocoAI.Health;
-		HealthMax = LocoAI.HealthMax;
-	
-		//SpawnDefaultController();
-		//AlloyAIController(Controller).SetupPawn();
+
+	//Create the laser beam if none exists
+	if(BeamEmitter == None) {
+		BeamEmitter = new(self) class'UTParticleSystemComponent';
+		BeamTemplate = ParticleSystem'WP_LinkGun.Effects.P_WP_Linkgun_Altbeam'; //This defines which particle to use
+		BeamEmitter.SetAbsolute(false, false, false); // I have no clue what this does
+		BeamEmitter.SetTemplate(BeamTemplate);
 		
-
-		SpawnParticle();
-		
-		tHead_name = HeadPart.Name;
-		tPower_name = PowerPart.Name;
-		tTool_name = ToolPart.Name;
-		tLoco_name = LocoPart.Name;
-	}
-	
-	if(head == 'none' && power == 'none' && tool == 'none' && loco == 'none')
-	{
-		`Log("--Replicating Dumping Bot Parts--" );
-		DeathParticle();
-		DetachPart(HeadPart);
-		DetachPart(PowerPart);
-		DetachPart(ToolPart);
-		DetachPart(LocoPart);
-		
-		tHead_name = 'none';
-		tPower_name = 'none';
-		tTool_name = 'none';
- 		tLoco_name = 'none';
-	}
-}
-
-function PlayWalks()
-{
-	LocoPart.PlayWalk(LocoAI.WalkingAnim);
-	HeadPart.PlayWalk(HeadAI.WalkingAnim);
-	ToolPart.PlayWalk(ToolAI.WalkingAnim);
-}
-
-function StopWalks()
-{
-	LocoPart.StopWalk(LocoAI.WalkingAnim);
-	HeadPart.StopWalk(HeadAI.WalkingAnim);
-	ToolPart.StopWalk(ToolAI.WalkingAnim);
-}
-
-simulated function DeathParticle() 
-{
-
-	if(DeathEmitter == None) {
-		DeathEmitter = new(self) class'UTParticleSystemComponent';
-		DeathTemplate = ParticleSystem'Particles.Bot_Death'; //This defines which particle to use
-		DeathEmitter.SetAbsolute(false, false, false); // I have no clue what this does
-		DeathEmitter.SetTemplate(DeathTemplate);
-		
-		DeathEmitter.SetTickGroup(TG_PostUpdateWork);
-		DeathEmitter.bUpdateComponentInTick = true;
-		self.AttachComponent(DeathEmitter); // Set source of beam
+		BeamEmitter.SetTickGroup(TG_PostUpdateWork);
+		BeamEmitter.bUpdateComponentInTick = true;
+		self.AttachComponent(BeamEmitter); // Set source of beam
 	}
 		
-	DeathEmitter.ActivateSystem();
+	BeamEmitter.SetVectorParameter(EndPointParamName, target.Location); // Set target of beam
+	BeamEmitter.ActivateSystem();
 	
+	//`Log("Attacking closest target. Remaining health: "$target.Health);
 }
 
-simulated function SpawnParticle() 
+simulated function StopLaser() 
 {
-
-	if(SpawnEmitter == None) {
-		SpawnEmitter = new(self) class'UTParticleSystemComponent';
-		SpawnTemplate = ParticleSystem'Particles.Bot_Spawn'; //This defines which particle to use
-		SpawnEmitter.SetAbsolute(false, false, false); // I have no clue what this does
-		SpawnEmitter.SetTemplate(SpawnTemplate);
-		
-		SpawnEmitter.SetTickGroup(TG_PostUpdateWork);
-		SpawnEmitter.bUpdateComponentInTick = true;
-		self.AttachComponent(SpawnEmitter); // Set source of beam
-	}
-		
-	SpawnEmitter.ActivateSystem();
-	
+	BeamEmitter.DeactivateSystem();
 }
 
 
-simulated function Hit()
-{
-	`Log("I should be being hit! ");
-	HeadAI.Hit(AlloyAIController(Controller));
-	ToolAI.Hit(AlloyAIController(Controller));
-	LocoAI.Hit(AlloyAIController(Controller));	
-}
 
 
-/*
 simulated function UpdateLoc()
 {
 //`Log(myLoco.location);
@@ -273,26 +128,25 @@ simulated function UpdateLoc()
 	//myBody.SetLocation(location);
 	//myTool.SetLocation(location);
 }
-*/
+
 //when bot dies detach its parts
 function bool Died(Controller Killer, class<DamageType> DamageType, vector HitLocation)
 {
-	DeathParticle();
+	
 	DetachPart(HeadPart);
 	DetachPart(PowerPart);
 	DetachPart(ToolPart);
 	DetachPart(LocoPart);
 	
-	self.Destroy();
 	
 	return super.Died(Killer, DamageType, HitLocation);
 	
+	
+
 }
 
 defaultproperties
 {
-
-	Tag = "AlloyBot"
 	EndPointParamName = LinkBeamEnd
 
    WalkingPct=+0.4
