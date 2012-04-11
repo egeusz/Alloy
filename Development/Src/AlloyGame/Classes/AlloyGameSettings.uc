@@ -1,4 +1,4 @@
-class AlloyGameSettings extends AlloyGameSettingsCommon;
+class AlloyGameSettings extends UTGameSettingsCommon;
 
 defaultproperties
 {

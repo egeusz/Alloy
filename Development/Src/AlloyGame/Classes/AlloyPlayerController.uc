@@ -32,17 +32,27 @@ var float DeltaTimeAccumulated; //Accumulate time to check for mouse clicks
 var bool bLeftMousePressed; //Initialize this function in StartFire and off in StopFire
 var bool bRightMousePressed; //Initialize this function in StartFire and off in StopFire
 
-var AlloyMusicManager MusicManager;
+var bool bAirborne;
+
+var AlloyMusicManager AlloyMusic;
 
 simulated event PostBeginPlay()
 {
-	local byte teamNum;
-	teamNum = GetTeamNum();
+	//local byte teamNum;
+	//teamNum = GetTeamNum();
 	super.PostBeginPlay();
 //	MouseCursor = Spawn(class'AlloyMouseCursor', self, 'marker');
-	MusicManager = Spawn(class'AlloyMusicManager', self);
-	`Log("Im up and my team is: "@teamNum);
+	AlloyMusic = Spawn(class'AlloyMusicManager', self);
+	//`Log("Im up and my team is: "@teamNum);
 }
+
+simulated function SetTeam(AlloyTeamInfo NewTeam)
+{
+	AlloyPlayerReplicationInfo(PlayerReplicationInfo).Team = NewTeam;
+	`Log("I've been assigned to team "@GetTeamNum());
+}
+
+
 
 state PlayerWalking
 {
@@ -66,6 +76,17 @@ ignores SeePlayer, HearNoise, Bump;
       CheckJumpOrDuck();
    }
 }
+
+function PlayerTick(Float Delta)
+{
+	//`Log("Player Pawn Tick");
+	
+	AlloyPlayerPawn(Pawn).CheckMagnetAndParts();
+	
+	super.PlayerTick(Delta);
+		
+}
+
 
 function UpdateRotation( float DeltaTime )
 {
@@ -92,24 +113,41 @@ function UpdateRotation( float DeltaTime )
 }
 
 exec function ZoomIn() {
-	`Log("Zooming In -- OK");
+//	`Log("Zooming In -- OK");
 	AlloyPlayerPawn(Pawn).ZoomIn();
 }
 
 exec function ZoomOut() {
-	`Log("Zooming Out -- OK");
+//	`Log("Zooming Out -- OK");
 	AlloyPlayerPawn(Pawn).ZoomOut();
 }
 
 /* NEED TO REMAP THESE THAT FOLLOW: */
 
 function CheckJumpOrDuck() {
+	super.CheckJumpOrDuck();
+		
+		
+		if ( bPressedJump && (Pawn != None) && !bAirborne) {
+			
+			AlloyPlayerPawn(Pawn).PlayAnim('builderbot_anim_jump', false);
+			bAirborne = true;
+			
+			AlloyPlayerPawn(Pawn).PrintActors();
+		}
+		
+		
+
+/*	
 	// If the player presses the jump button and there exists a pawn
 	if ( bPressedJump && (Pawn != None) ) {
 		// Typecast the pawn to type AlloyPlayerPawn and execute its DoShock function.
-		AlloyPlayerPawn(Pawn).DoShock(Pawn);
+		AlloyPlayerPawn(Pawn).DoShock(Pawn, AlloyTeamInfo(AlloyPlayerReplicationInfo(PlayerReplicationInfo).Team));
 	}
+*/
 }
+
+
 
 exec function StartFire(optional byte FireModeNum)
 {
@@ -146,6 +184,24 @@ exec function StopFire(optional byte FireModeNum )
     //`Log("Right Mouse released");
   }
 }
+
+
+
+/* CONSOLE DEBUGGGING FUNCTIONS */
+
+exec function AlloyTakeDamage(float damage)
+{
+	Pawn.Health = Pawn.Health - damage;
+}
+
+exec function AlloyChangeTeam(int teamNum)
+{
+	local AlloyTeamInfo Teams;
+	Teams = spawn(class'AlloyTeamInfo');
+	Teams.Initialize(teamNum);
+	WorldInfo.Game.GameReplicationInfo.SetTeam(teamNum, Teams);
+}
+
 
 defaultproperties
 {

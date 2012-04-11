@@ -1,12 +1,16 @@
 class AlloyAIComponent extends Component
 //abstract;
 ;
- var public string Tag; 
+
+var float Cooldown;
+var public string Tag; 
+
+var name WalkingAnim;
 
 defaultproperties
 {
 	
-	
+	Cooldown = 15.0
 
 }
 
