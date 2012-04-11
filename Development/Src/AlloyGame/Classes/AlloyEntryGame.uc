@@ -1,0 +1,1 @@
+class AlloyEntryGame extends UTEntryGame;

@@ -1,0 +1,2 @@
+class AlloyBot extends UTBot;
+

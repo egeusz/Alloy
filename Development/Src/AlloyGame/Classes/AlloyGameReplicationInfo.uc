@@ -1,0 +1,2 @@
+class AlloyGameReplicationInfo extends UTGameReplicationInfo;
+
